@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Starting Grid | Der Formel 1 Podcast</title>
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      /* Custom Motorsport Animations & Styles */
+      body {
+        font-family: 'Rajdhani', sans-serif;
+        background-color: #1a1c1b;
+        color: #f1f1f1;
+        overflow-x: hidden;
+      }
+      
+      h1, h2, h3, h4, .font-display {
+        font-family: 'Orbitron', sans-serif;
+      }
+
+      .clip-racer {
+        clip-path: polygon(10% 0, 100% 0, 100% 90%, 90% 100%, 0 100%, 0 10%);
+      }
+
+      .clip-skew {
+        clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
+      }
+
+      @keyframes drive-by {
+        0% { transform: translateX(-100%) skewX(-20deg); opacity: 0; }
+        50% { opacity: 1; }
+        100% { transform: translateX(200%) skewX(-20deg); opacity: 0; }
+      }
+
+      .speed-line {
+        position: absolute;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.1);
+        width: 200px;
+        animation: drive-by 2s linear infinite;
+      }
+
+      .asphalt-texture {
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+      }
+      
+      .scroll-hide::-webkit-scrollbar {
+          display: none;
+      }
+      .scroll-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
