@@ -14,6 +14,10 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Firebase SDKs (Compat version for easier CDN usage without build step) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -55,6 +59,14 @@
             width: 200px;
             animation: drive-by 2s linear infinite;
         }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
 
         .asphalt-texture {
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
@@ -68,11 +80,12 @@
             padding: 0.5rem;
             border-radius: 0.25rem;
             width: 100%;
+            transition: all 0.2s;
         }
         input:focus, textarea:focus, select:focus {
             outline: none;
             border-color: #cc191a;
-            ring: 1px solid #cc191a;
+            box-shadow: 0 0 0 2px rgba(204, 25, 26, 0.2);
         }
         label {
             display: block;
@@ -98,7 +111,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- ICONS (SVG Implementation to avoid dependencies) ---
+        // --- ICONS ---
         const Icons = {
             Menu: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>,
             X: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>,
@@ -121,9 +134,11 @@
             Edit: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>,
             Plus: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>,
             Save: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+            Refresh: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>,
+            Database: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
         };
 
-        // --- CONSTANTS & DEFAULT DATA ---
+        // --- CONSTANTS ---
         const COLORS = {
             accent: '#cc191a',
             bg: '#1a1c1b',
@@ -132,16 +147,13 @@
         };
 
         const LINKS = [
-            // Platforms
             { name: 'Spotify', url: 'https://open.spotify.com/show/248DTJayGh73lX1bXAhBRa?si=_0FgvHnURdC3mEz-g8RrBQ', icon: Icons.Headphones, category: 'platform' },
             { name: 'Apple Podcast', url: 'https://podcasts.apple.com/de/podcast/starting-grid/id1058868792', icon: Icons.Mic, category: 'platform' },
             { name: 'YouTube', url: 'https://www.youtube.com/@startinggrid_f1', icon: Icons.Youtube, category: 'platform' },
             { name: 'MeinSportPodcast', url: 'https://meinsportpodcast.de/motorsport/starting-grid/', icon: Icons.Headphones, category: 'platform' },
-            // Socials
             { name: 'Instagram', url: 'https://instagram.com/startinggrid_f1', icon: Icons.Instagram, category: 'social' },
             { name: 'Twitter / X', url: 'https://twitter.com/startinggrid_f1', icon: Icons.Twitter, category: 'social' },
             { name: 'Facebook', url: 'https://www.facebook.com/MSPGrid', icon: Icons.Facebook, category: 'social' },
-            // Community
             { name: 'Discord', url: 'https://discord.gg/aRaNvy9Qch', icon: Icons.MessageCircle, category: 'community' },
             { name: 'Telegram', url: 'https://t.me/StartingGrid', icon: Icons.Send, category: 'community' },
         ];
@@ -151,64 +163,110 @@
                 name: 'Kevin Scheuren',
                 role: 'Podcast Host & Videohost',
                 image: 'https://picsum.photos/seed/kevin/400/600',
-                socials: {
-                    twitter: 'kevin_scheuren',
-                    instagram: 'kevin_scheuren'
-                }
+                socials: { twitter: 'kevin_scheuren', instagram: 'kevin_scheuren' }
             },
             {
                 name: 'Dennis Lewandowski',
                 role: 'Podcast Host & Videohost',
                 image: 'https://picsum.photos/seed/dennis/400/600',
-                socials: {
-                    twitter: 'dennis_lewan92',
-                    instagram: 'dennis_lewandowski'
-                }
+                socials: { twitter: 'dennis_lewan92', instagram: 'dennis_lewandowski' }
             }
         ];
 
-        const DEFAULT_EPISODES = [
-            {
-                id: '1',
-                title: 'Neue Podcastfolge: Ordentlich durchgeschüttelt',
-                date: '10. März 2024',
-                duration: '1h 12m',
-                description: 'Eine Analyse der turbulenten Ereignisse des letzten Rennwochenendes. Wir diskutieren die Strategien und die überraschenden Ausfälle.',
-                image: 'https://picsum.photos/seed/ep1/600/400',
-                tags: ['Rennanalyse', 'Drama'],
-                links: {
-                    spotify: 'https://open.spotify.com/show/248DTJayGh73lX1bXAhBRa',
-                    apple: 'https://podcasts.apple.com/de/podcast/starting-grid/id1058868792',
-                    youtube: 'https://www.youtube.com/@startinggrid_f1',
-                    msp: 'https://meinsportpodcast.de/motorsport/starting-grid/'
-                }
-            },
-            {
-                id: '2',
-                title: 'Fahrerrankings 2025 - Wer holt den Titel?',
-                date: '03. März 2024',
-                duration: '58m',
-                description: 'Kevin und Dennis werfen einen Blick in die Zukunft. Wie sehen die Fahrerkombinationen für 2025 aus und wer hat die besten Karten?',
-                image: 'https://picsum.photos/seed/ep2/600/400',
-                tags: ['Silly Season', '2025'],
-                links: {
-                    spotify: 'https://open.spotify.com/show/248DTJayGh73lX1bXAhBRa',
-                    apple: 'https://podcasts.apple.com/de/podcast/starting-grid/id1058868792'
-                }
-            },
-            {
-                id: '3',
-                title: 'Watch2Gether: Rennen Abu Dhabi',
-                date: '26. Februar 2024',
-                duration: '2h 05m',
-                description: 'Das große Saisonfinale im Re-Live. Unsere Live-Kommentare und Reaktionen zum Rennen in Abu Dhabi.',
-                image: 'https://picsum.photos/seed/ep3/600/400',
-                tags: ['Watchalong', 'Finale'],
-                links: {
-                     youtube: 'https://www.youtube.com/@startinggrid_f1'
+        // --- DATABASE CONFIGURATION LAYER ---
+        const DB_CONFIG_KEY = 'sg_firebase_config';
+
+        class FirebaseManager {
+            constructor() {
+                this.db = null;
+                this.initialized = false;
+                this.init();
+            }
+
+            init() {
+                const storedConfig = localStorage.getItem(DB_CONFIG_KEY);
+                if (storedConfig) {
+                    try {
+                        const config = JSON.parse(storedConfig);
+                        if (!firebase.apps.length) {
+                            firebase.initializeApp(config);
+                        }
+                        this.db = firebase.firestore();
+                        this.initialized = true;
+                        console.log("Firebase initialized successfully");
+                    } catch (e) {
+                        console.error("Firebase init failed:", e);
+                        localStorage.removeItem(DB_CONFIG_KEY);
+                        this.initialized = false;
+                    }
                 }
             }
-        ];
+
+            saveConfig(configStr) {
+                try {
+                    const config = JSON.parse(configStr);
+                    localStorage.setItem(DB_CONFIG_KEY, JSON.stringify(config));
+                    window.location.reload(); // Reload to init firebase
+                    return true;
+                } catch (e) {
+                    alert("Ungültiges JSON Format!");
+                    return false;
+                }
+            }
+            
+            resetConfig() {
+                localStorage.removeItem(DB_CONFIG_KEY);
+                window.location.reload();
+            }
+
+            async getAllEpisodes() {
+                if (!this.initialized) return [];
+                try {
+                    const snapshot = await this.db.collection('episodes').orderBy('dateObj', 'desc').get();
+                    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                } catch (e) {
+                    console.error("Error fetching episodes:", e);
+                    return [];
+                }
+            }
+
+            async createEpisode(episode) {
+                if (!this.initialized) return;
+                // Add a date object for sorting
+                const dateParts = episode.date.split('.'); // Assumes dd.mm.yyyy
+                let dateObj = new Date();
+                if(dateParts.length === 3) {
+                     dateObj = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`);
+                }
+                
+                await this.db.collection('episodes').add({
+                    ...episode,
+                    dateObj: dateObj,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+
+            async updateEpisode(id, updates) {
+                if (!this.initialized) return;
+                // Update date object if date string changes
+                let extraUpdates = {};
+                if(updates.date) {
+                    const dateParts = updates.date.split('.');
+                    if(dateParts.length === 3) {
+                         extraUpdates.dateObj = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`);
+                    }
+                }
+                
+                await this.db.collection('episodes').doc(id).update({...updates, ...extraUpdates});
+            }
+
+            async deleteEpisode(id) {
+                if (!this.initialized) return;
+                await this.db.collection('episodes').doc(id).delete();
+            }
+        }
+
+        const dbManager = new FirebaseManager();
 
         // --- COMPONENTS ---
 
@@ -236,6 +294,51 @@
                             }}
                         />
                     ))}
+                </div>
+            );
+        };
+        
+        const SetupScreen = () => {
+            const [configInput, setConfigInput] = React.useState('');
+            
+            const handleSave = () => {
+                dbManager.saveConfig(configInput);
+            };
+
+            return (
+                <div className="min-h-screen bg-[#1a1c1b] text-white flex items-center justify-center p-4">
+                    <div className="bg-[#272928] p-8 rounded-lg border border-[#cc191a] max-w-2xl w-full shadow-[0_0_50px_rgba(204,25,26,0.2)]">
+                        <div className="flex items-center gap-4 mb-6">
+                            <Icons.Database className="w-10 h-10 text-[#cc191a]" />
+                            <h1 className="font-display text-3xl font-bold">Datenbank Verbindung</h1>
+                        </div>
+                        
+                        <p className="text-gray-400 mb-6">
+                            Um eine echte Datenbank ohne Node.js Server zu nutzen, verbinden wir uns direkt mit der 
+                            <strong>Google Firebase Cloud</strong>. 
+                        </p>
+                        
+                        <ol className="list-decimal list-inside text-sm text-gray-300 mb-6 space-y-2 font-mono bg-black/30 p-4 rounded">
+                            <li>Gehe zu <a href="https://console.firebase.google.com" target="_blank" className="text-[#cc191a] underline">console.firebase.google.com</a></li>
+                            <li>Erstelle ein neues Projekt</li>
+                            <li>Erstelle eine <strong>Firestore Database</strong> (Start im Test-Mode)</li>
+                            <li>Füge eine Web-App hinzu und kopiere die <strong>firebaseConfig</strong></li>
+                        </ol>
+
+                        <div className="mb-6">
+                            <label className="text-xs mb-2">Füge hier das firebaseConfig JSON Objekt ein:</label>
+                            <textarea 
+                                value={configInput}
+                                onChange={(e) => setConfigInput(e.target.value)}
+                                className="font-mono text-xs h-40"
+                                placeholder='{ "apiKey": "...", "authDomain": "...", ... }'
+                            ></textarea>
+                        </div>
+
+                        <button onClick={handleSave} className="w-full py-4 bg-[#cc191a] hover:bg-red-700 text-white font-bold uppercase tracking-wider transition-colors rounded">
+                            Verbindung herstellen
+                        </button>
+                    </div>
                 </div>
             );
         };
@@ -383,7 +486,7 @@
             );
         };
 
-        const LatestEpisodes = ({ episodes }) => {
+        const LatestEpisodes = ({ episodes, isLoading }) => {
             return (
                 <section id="episodes" className="py-20 bg-[#1a1c1b] relative">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -398,73 +501,81 @@
                             </a>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {episodes.map((episode) => (
-                                <div key={episode.id} className="group relative bg-[#272928] rounded-none overflow-hidden hover:transform hover:-translate-y-2 transition-all duration-300 shadow-xl border-l-4 border-transparent hover:border-[#cc191a]">
-                                    <div className="relative h-48 overflow-hidden">
-                                        <div className="absolute inset-0 bg-gradient-to-t from-[#272928] to-transparent z-10" />
-                                        <img 
-                                            src={episode.image} 
-                                            alt={episode.title}
-                                            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
-                                        />
-                                        <div className="absolute top-4 right-4 z-20 flex gap-2 flex-wrap justify-end">
-                                            {episode.tags.map(tag => (
-                                                <span key={tag} className="text-xs font-bold uppercase px-2 py-1 bg-[#cc191a] text-white rounded-sm">
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="p-6 relative z-20">
-                                        <div className="flex items-center text-xs text-gray-400 mb-3 gap-4 font-mono">
-                                            <div className="flex items-center">
-                                                <Icons.Calendar className="h-3 w-3 mr-1 text-[#cc191a]" />
-                                                {episode.date}
-                                            </div>
-                                            <div className="flex items-center">
-                                                <Icons.Clock className="h-3 w-3 mr-1 text-[#cc191a]" />
-                                                {episode.duration}
+                        {isLoading ? (
+                            <div className="flex justify-center items-center h-64">
+                                <Icons.Refresh className="w-12 h-12 text-[#cc191a] spinner" />
+                            </div>
+                        ) : episodes.length === 0 ? (
+                            <div className="text-center py-20 text-gray-500">Keine Episoden gefunden.</div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                {episodes.map((episode) => (
+                                    <div key={episode.id} className="group relative bg-[#272928] rounded-none overflow-hidden hover:transform hover:-translate-y-2 transition-all duration-300 shadow-xl border-l-4 border-transparent hover:border-[#cc191a]">
+                                        <div className="relative h-48 overflow-hidden">
+                                            <div className="absolute inset-0 bg-gradient-to-t from-[#272928] to-transparent z-10" />
+                                            <img 
+                                                src={episode.image} 
+                                                alt={episode.title}
+                                                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
+                                            />
+                                            <div className="absolute top-4 right-4 z-20 flex gap-2 flex-wrap justify-end">
+                                                {episode.tags && episode.tags.map(tag => (
+                                                    <span key={tag} className="text-xs font-bold uppercase px-2 py-1 bg-[#cc191a] text-white rounded-sm">
+                                                        {tag}
+                                                    </span>
+                                                ))}
                                             </div>
                                         </div>
 
-                                        <h3 className="font-display text-xl font-bold text-white mb-3 leading-tight group-hover:text-[#cc191a] transition-colors">
-                                            {episode.title}
-                                        </h3>
-                                        
-                                        <p className="text-gray-400 text-sm mb-6 line-clamp-2">
-                                            {episode.description}
-                                        </p>
+                                        <div className="p-6 relative z-20">
+                                            <div className="flex items-center text-xs text-gray-400 mb-3 gap-4 font-mono">
+                                                <div className="flex items-center">
+                                                    <Icons.Calendar className="h-3 w-3 mr-1 text-[#cc191a]" />
+                                                    {episode.date}
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <Icons.Clock className="h-3 w-3 mr-1 text-[#cc191a]" />
+                                                    {episode.duration}
+                                                </div>
+                                            </div>
 
-                                        {/* Platform Links */}
-                                        <div className="flex gap-2 mt-4 pt-4 border-t border-gray-700">
-                                             {episode.links?.spotify && (
-                                                <a href={episode.links.spotify} target="_blank" className="text-gray-400 hover:text-[#1DB954]" title="Spotify">
-                                                    <Icons.Headphones className="w-5 h-5" />
-                                                </a>
-                                             )}
-                                             {episode.links?.apple && (
-                                                <a href={episode.links.apple} target="_blank" className="text-gray-400 hover:text-white" title="Apple Podcast">
-                                                    <Icons.Mic className="w-5 h-5" />
-                                                </a>
-                                             )}
-                                             {episode.links?.youtube && (
-                                                <a href={episode.links.youtube} target="_blank" className="text-gray-400 hover:text-[#FF0000]" title="YouTube">
-                                                    <Icons.Youtube className="w-5 h-5" />
-                                                </a>
-                                             )}
-                                             {episode.links?.msp && (
-                                                <a href={episode.links.msp} target="_blank" className="text-gray-400 hover:text-orange-500" title="MeinSportPodcast">
-                                                    <Icons.Headphones className="w-5 h-5" />
-                                                </a>
-                                             )}
+                                            <h3 className="font-display text-xl font-bold text-white mb-3 leading-tight group-hover:text-[#cc191a] transition-colors">
+                                                {episode.title}
+                                            </h3>
+                                            
+                                            <p className="text-gray-400 text-sm mb-6 line-clamp-2">
+                                                {episode.description}
+                                            </p>
+
+                                            {/* Platform Links */}
+                                            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-700">
+                                                 {episode.links?.spotify && (
+                                                    <a href={episode.links.spotify} target="_blank" className="text-gray-400 hover:text-[#1DB954]" title="Spotify">
+                                                        <Icons.Headphones className="w-5 h-5" />
+                                                    </a>
+                                                 )}
+                                                 {episode.links?.apple && (
+                                                    <a href={episode.links.apple} target="_blank" className="text-gray-400 hover:text-white" title="Apple Podcast">
+                                                        <Icons.Mic className="w-5 h-5" />
+                                                    </a>
+                                                 )}
+                                                 {episode.links?.youtube && (
+                                                    <a href={episode.links.youtube} target="_blank" className="text-gray-400 hover:text-[#FF0000]" title="YouTube">
+                                                        <Icons.Youtube className="w-5 h-5" />
+                                                    </a>
+                                                 )}
+                                                 {episode.links?.msp && (
+                                                    <a href={episode.links.msp} target="_blank" className="text-gray-400 hover:text-orange-500" title="MeinSportPodcast">
+                                                        <Icons.Headphones className="w-5 h-5" />
+                                                    </a>
+                                                 )}
+                                            </div>
+
                                         </div>
-
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                         
                         <div className="mt-8 text-center sm:hidden">
                             <a href="#" className="inline-flex items-center text-white hover:text-[#cc191a] font-bold uppercase">
@@ -674,7 +785,10 @@
 
         // --- ADMIN COMPONENTS ---
 
-        const AdminPanel = ({ episodes, setEpisodes, closeAdmin }) => {
+        const AdminPanel = ({ closeAdmin, resetDb }) => {
+            const [episodes, setEpisodes] = React.useState([]);
+            const [isLoading, setIsLoading] = React.useState(true);
+            const [isSaving, setIsSaving] = React.useState(false);
             const [editingId, setEditingId] = React.useState(null);
             
             // Initial Form State
@@ -693,6 +807,18 @@
             
             const [formData, setFormData] = React.useState(initialFormState);
 
+            // Fetch Data
+            const fetchData = async () => {
+                setIsLoading(true);
+                const data = await dbManager.getAllEpisodes();
+                setEpisodes(data);
+                setIsLoading(false);
+            };
+
+            React.useEffect(() => {
+                fetchData();
+            }, []);
+
             const handleEdit = (episode) => {
                 setEditingId(episode.id);
                 setFormData({
@@ -701,7 +827,7 @@
                     duration: episode.duration,
                     description: episode.description,
                     image: episode.image,
-                    tags: episode.tags.join(', '),
+                    tags: episode.tags ? episode.tags.join(', ') : '',
                     spotify: episode.links?.spotify || '',
                     apple: episode.links?.apple || '',
                     youtube: episode.links?.youtube || '',
@@ -710,19 +836,20 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
-            const handleDelete = (id) => {
+            const handleDelete = async (id) => {
                 if(confirm('Wirklich löschen?')) {
-                    const updated = episodes.filter(e => e.id !== id);
-                    setEpisodes(updated);
-                    localStorage.setItem('sg_episodes', JSON.stringify(updated));
+                    setIsSaving(true);
+                    await dbManager.deleteEpisode(id);
+                    await fetchData(); // Refresh
+                    setIsSaving(false);
                 }
             };
 
-            const handleSubmit = (e) => {
+            const handleSubmit = async (e) => {
                 e.preventDefault();
+                setIsSaving(true);
                 
-                const newEpisode = {
-                    id: editingId || Date.now().toString(),
+                const episodeData = {
                     title: formData.title,
                     date: formData.date,
                     duration: formData.duration,
@@ -737,30 +864,35 @@
                     }
                 };
 
-                let updatedEpisodes;
                 if (editingId) {
-                    updatedEpisodes = episodes.map(e => e.id === editingId ? newEpisode : e);
+                    await dbManager.updateEpisode(editingId, episodeData);
                 } else {
-                    updatedEpisodes = [newEpisode, ...episodes];
+                    await dbManager.createEpisode(episodeData);
                 }
 
-                setEpisodes(updatedEpisodes);
-                localStorage.setItem('sg_episodes', JSON.stringify(updatedEpisodes));
-                
-                // Reset
+                await fetchData();
+                setIsSaving(false);
                 setEditingId(null);
                 setFormData(initialFormState);
-                alert('Gespeichert!');
+                alert('Datenbank erfolgreich aktualisiert!');
             };
 
             return (
                 <div className="min-h-screen bg-[#1a1c1b] text-white p-6">
                     <div className="max-w-4xl mx-auto">
                         <div className="flex justify-between items-center mb-8 border-b border-gray-700 pb-4">
-                            <h2 className="text-3xl font-display font-bold text-[#cc191a]">Admin Dashboard</h2>
-                            <button onClick={closeAdmin} className="text-gray-400 hover:text-white flex items-center gap-2">
-                                <Icons.X className="w-5 h-5" /> Schließen
-                            </button>
+                            <div className="flex items-center gap-4">
+                                <h2 className="text-3xl font-display font-bold text-[#cc191a]">Database Manager</h2>
+                                {isSaving && <Icons.Refresh className="w-6 h-6 animate-spin text-gray-400" />}
+                            </div>
+                            <div className="flex gap-4">
+                                <button onClick={() => {if(confirm('Datenbankverbindung trennen?')) resetDb();}} className="text-gray-400 hover:text-[#cc191a] text-sm">
+                                    DB Trennen
+                                </button>
+                                <button onClick={closeAdmin} className="text-gray-400 hover:text-white flex items-center gap-2">
+                                    <Icons.X className="w-5 h-5" /> Schließen
+                                </button>
+                            </div>
                         </div>
 
                         {/* Editor Form */}
@@ -777,8 +909,8 @@
                                         <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Folgentitel" />
                                     </div>
                                     <div>
-                                        <label>Datum</label>
-                                        <input required type="text" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} placeholder="z.B. 10. März 2024" />
+                                        <label>Datum (dd.mm.yyyy)</label>
+                                        <input required type="text" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} placeholder="z.B. 10.03.2024" />
                                     </div>
                                     <div>
                                         <label>Länge</label>
@@ -828,8 +960,8 @@
                                             Abbrechen
                                         </button>
                                     )}
-                                    <button type="submit" className="flex items-center gap-2 px-6 py-2 bg-[#cc191a] hover:bg-red-700 rounded text-white font-bold uppercase tracking-wider transition-colors">
-                                        <Icons.Save className="w-4 h-4" /> Speichern
+                                    <button disabled={isSaving} type="submit" className={`flex items-center gap-2 px-6 py-2 bg-[#cc191a] hover:bg-red-700 rounded text-white font-bold uppercase tracking-wider transition-colors ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                        <Icons.Save className="w-4 h-4" /> {isSaving ? 'Speichere...' : 'Speichern'}
                                     </button>
                                 </div>
                             </form>
@@ -837,26 +969,30 @@
 
                         {/* List */}
                         <div className="space-y-4">
-                            <h3 className="text-xl font-display font-bold mb-4">Alle Episoden ({episodes.length})</h3>
-                            {episodes.map(ep => (
-                                <div key={ep.id} className="flex items-center justify-between bg-[#272928] p-4 rounded border-l-4 border-transparent hover:border-[#cc191a] transition-all">
-                                    <div className="flex items-center gap-4">
-                                        <img src={ep.image} className="w-16 h-16 object-cover rounded" alt="" />
-                                        <div>
-                                            <h4 className="font-bold text-lg">{ep.title}</h4>
-                                            <span className="text-gray-400 text-xs">{ep.date} • {ep.duration}</span>
+                            <h3 className="text-xl font-display font-bold mb-4">Cloud Datenbank Einträge ({episodes.length})</h3>
+                            {isLoading ? (
+                                <div className="text-center py-10"><Icons.Refresh className="w-8 h-8 animate-spin mx-auto text-[#cc191a]" /></div>
+                            ) : (
+                                episodes.map(ep => (
+                                    <div key={ep.id} className="flex items-center justify-between bg-[#272928] p-4 rounded border-l-4 border-transparent hover:border-[#cc191a] transition-all">
+                                        <div className="flex items-center gap-4">
+                                            <img src={ep.image} className="w-16 h-16 object-cover rounded" alt="" />
+                                            <div>
+                                                <h4 className="font-bold text-lg">{ep.title}</h4>
+                                                <span className="text-gray-400 text-xs">{ep.date} • {ep.duration}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleEdit(ep)} className="p-2 bg-gray-700 hover:bg-[#cc191a] rounded text-white transition-colors">
+                                                <Icons.Edit className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => handleDelete(ep.id)} className="p-2 bg-gray-700 hover:bg-red-900 rounded text-white transition-colors">
+                                                <Icons.Trash className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleEdit(ep)} className="p-2 bg-gray-700 hover:bg-[#cc191a] rounded text-white transition-colors">
-                                            <Icons.Edit className="w-4 h-4" />
-                                        </button>
-                                        <button onClick={() => handleDelete(ep.id)} className="p-2 bg-gray-700 hover:bg-red-900 rounded text-white transition-colors">
-                                            <Icons.Trash className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>
@@ -866,16 +1002,25 @@
         const App = () => {
             const [view, setView] = React.useState('home'); // home | admin
             const [episodes, setEpisodes] = React.useState([]);
+            const [isLoading, setIsLoading] = React.useState(true);
+            const [needsConfig, setNeedsConfig] = React.useState(!dbManager.initialized);
 
-            // Load Data on Mount
+            // Fetch Data from DB on Mount
             React.useEffect(() => {
-                const stored = localStorage.getItem('sg_episodes');
-                if (stored) {
-                    setEpisodes(JSON.parse(stored));
-                } else {
-                    setEpisodes(DEFAULT_EPISODES);
+                if (dbManager.initialized) {
+                    const load = async () => {
+                        setIsLoading(true);
+                        const data = await dbManager.getAllEpisodes();
+                        setEpisodes(data);
+                        setIsLoading(false);
+                    };
+                    load();
                 }
-            }, []);
+            }, [view]);
+
+            if (needsConfig) {
+                return <SetupScreen />;
+            }
 
             const handleAdminLogin = () => {
                 const password = prompt("Admin Passwort:");
@@ -887,7 +1032,7 @@
             };
 
             if (view === 'admin') {
-                return <AdminPanel episodes={episodes} setEpisodes={setEpisodes} closeAdmin={() => setView('home')} />;
+                return <AdminPanel resetDb={() => dbManager.resetConfig()} closeAdmin={() => setView('home')} />;
             }
 
             return (
@@ -895,7 +1040,7 @@
                     <Navbar />
                     <main>
                         <Hero />
-                        <LatestEpisodes episodes={episodes} />
+                        <LatestEpisodes episodes={episodes} isLoading={isLoading} />
                         <Hosts />
                         <SocialHub />
                     </main>
